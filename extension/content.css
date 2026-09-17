@@ -1,0 +1,4 @@
+/* 划词浮层由 content.js 用 Shadow DOM 渲染，这里只占位避免页面样式冲突。 */
+#chint-sidechat-root {
+  all: initial;
+}

@@ -1,0 +1,9 @@
+{
+  "name": "com.hzy9738.grok_sidechat",
+  "description": "Side Chat native host — OpenAI-compatible Chat Completions",
+  "path": "HOST_BINARY_PATH",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://EXTENSION_ID/"
+  ]
+}

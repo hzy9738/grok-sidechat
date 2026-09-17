@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grok Side Chat Browser Smoke</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 680px; margin: 48px auto; padding: 0 24px; line-height: 1.5; }
+    form { display: grid; gap: 12px; max-width: 420px; }
+    label { display: grid; gap: 6px; }
+    input, button { font: inherit; padding: 10px 12px; border-radius: 9px; border: 1px solid #8888; }
+    button { cursor: pointer; }
+    #result { margin-top: 20px; padding: 12px; border-radius: 9px; background: #8882; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Browser MCP Smoke Test</h1>
+    <p>页面标记：<strong>GSC-SMOKE-2026</strong></p>
+    <form id="smoke-form">
+      <label>
+        验收文本
+        <input id="smoke-input" name="message" placeholder="输入验收文本" autocomplete="off" />
+      </label>
+      <button id="smoke-submit" type="submit">提交验收</button>
+    </form>
+    <div id="result" role="status" aria-live="polite">尚未提交</div>
+  </main>
+  <script>
+    document.getElementById("smoke-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = document.getElementById("smoke-input").value;
+      document.getElementById("result").textContent = `已提交：${value}`;
+      document.title = `Smoke Complete: ${value}`;
+    });
+  </script>
+</body>
+</html>

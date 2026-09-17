@@ -1,0 +1,101 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Installer version
+        required: true
+        default: "0.6.0"
+      extension_update_url:
+        description: Chrome-compatible extension update URL
+        required: true
+        default: "https://clients2.google.com/service/update2/crx"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  # Chrome Web Store 分配的正式扩展 ID；本地 manifest key 的开发 ID 仅用于加载已解压扩展。
+  EXTENSION_ID: hkifhagmdbdpaihdmllddcingebfpjmm
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build universal host
+        run: |
+          cargo build --release --manifest-path host-rs/Cargo.toml --bin grok-sidechat-host --target aarch64-apple-darwin
+          cargo build --release --manifest-path host-rs/Cargo.toml --bin grok-sidechat-host --target x86_64-apple-darwin
+          mkdir -p build
+          lipo -create \
+            host-rs/target/aarch64-apple-darwin/release/grok-sidechat-host \
+            host-rs/target/x86_64-apple-darwin/release/grok-sidechat-host \
+            -output build/anneng-assistant-host
+          chmod +x build/anneng-assistant-host
+      - name: Inject host config
+        env:
+          HOST_CONFIG_JSON: ${{ secrets.HOST_CONFIG_JSON }}
+        run: |
+          if [ -n "${HOST_CONFIG_JSON:-}" ]; then
+            mkdir -p .secrets
+            printf '%s' "$HOST_CONFIG_JSON" > .secrets/host-config.json
+          else
+            echo "HOST_CONFIG_JSON secret not set; building package without default API config."
+          fi
+      - name: Build macOS package
+        env:
+          REQUESTED_VERSION: ${{ inputs.version || github.ref_name }}
+          EXTENSION_UPDATE_URL: ${{ inputs.extension_update_url || 'https://clients2.google.com/service/update2/crx' }}
+          HOST_BINARY: ${{ github.workspace }}/build/anneng-assistant-host
+        run: |
+          export APP_VERSION="${REQUESTED_VERSION#v}"
+          packaging/build-extension-zip.sh
+          packaging/macos/build-pkg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anneng-assistant-macos
+          path: |
+            dist/*.pkg
+            dist/*-Chrome-Web-Store.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build host
+        run: cargo build --release --manifest-path host-rs/Cargo.toml --bin grok-sidechat-host
+      - name: Inject host config
+        shell: pwsh
+        env:
+          HOST_CONFIG_JSON: ${{ secrets.HOST_CONFIG_JSON }}
+        run: |
+          if ($env:HOST_CONFIG_JSON) {
+            New-Item -ItemType Directory -Force ".secrets" | Out-Null
+            Set-Content -Path ".secrets\host-config.json" -Value $env:HOST_CONFIG_JSON -NoNewline -Encoding utf8
+          } else {
+            Write-Host "HOST_CONFIG_JSON secret not set; building package without default API config."
+          }
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version || github.ref_name }}" -replace '^v',''
+          ./packaging/windows/build-installer.ps1 `
+            -AppVersion $version `
+            -ExtensionId "$env:EXTENSION_ID" `
+            -ExtensionUpdateUrl "${{ inputs.extension_update_url || 'https://clients2.google.com/service/update2/crx' }}" `
+            -HostBinary "$pwd\host-rs\target\release\grok-sidechat-host.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anneng-assistant-windows
+          path: dist/*.exe
